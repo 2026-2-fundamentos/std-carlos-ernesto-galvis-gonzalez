@@ -55,7 +55,6 @@ def mapper(sequence):
         pairs_sequence.extend([(word, 1) for word in words])
     return pairs_sequence
 
-
 def reducer(pairs_sequence):
     result = []
     for key, value in pairs_sequence:
@@ -65,10 +64,14 @@ def reducer(pairs_sequence):
             result.append((key, value))
     return result
 
+def hadoop(
+    input_folder,
+    output_folder,
+    mapper,
+    reducer,
+):
 
-
-def hadoop(input_folder,output_folder, mapper,reducer):
-    def read_records_from_input(input_folder):
+    def read_records_from_input():
         sequence = []
         files = glob.glob(f"{input_folder}/*")
         for file in files:
@@ -76,44 +79,53 @@ def hadoop(input_folder,output_folder, mapper,reducer):
                 for line in f:
                     sequence.append((file, line))
         return sequence
+    
     def shuffle_and_sort(pairs_sequence):
         pairs_sequence = sorted(pairs_sequence)
         return pairs_sequence
+
     def save_results_to_output(result):
-        with open(f"{output_folder}/part-00000", "w", encoding="utf-8") as f:
+        with open(os.path.join(output_folder, "part-00000"), "w", encoding="utf-8") as f:
             for key, value in result:
                 f.write(f"{key}\t{value}\n")
-    def create_success_file():
-        with open(f"{output_folder}/_SUCCESS", "w", encoding="utf-8") as f:
+    def create_success_file(output_folder):
+        with open(os.path.join(output_folder, "_SUCCESS"), "w", encoding="utf-8") as f:
             f.write("")
-    
-    def fail_if_output_exists(output_folder):
-        if os.path.exists(output_folder):
-            raise Exception(
-                f"Output folder '{output_folder}' already exists.Please delete it before running the program."
-                )
 
-    fail_if_output_exists(output_folder)
-    sequence = read_records_from_input(input_folder)
+    def create_output_directory(output_folder):
+        if os.path.exists(output_folder):
+            raise FileExistsError(f"The folder '{output_folder}' already exists.")
+        else:
+            os.makedirs(output_folder)
+        
+    sequence = read_records_from_input()
     pairs_sequence = mapper(sequence)
     pairs_sequence = shuffle_and_sort(pairs_sequence)
     result = reducer(pairs_sequence)
-    initialize_folder(output_folder)
+    create_output_directory(output_folder)
     save_results_to_output(result)
-    create_success_file()
+    create_success_file(output_folder)
+
+def copy_hdfs_output_to_submission(output_folder, submission_folder):
+    initialize_folder(submission_folder)
+    for file in glob.glob(f"{output_folder}/*"):
+        shutil.copy2(file, submission_folder)
 
 
+if __name__ == "__main__":
 
+    initialize_folder(INPUT_FOLDER)
+    delete_folder(OUTPUT_FOLDER)
+    generate_files_copies(1000)
+    start_time = time.time()
 
-n = 1000
+    hadoop(
+        input_folder = INPUT_FOLDER,
+        output_folder = OUTPUT_FOLDER,
+        mapper = mapper,
+        reducer = reducer,
+    )
+    copy_hdfs_output_to_submission(OUTPUT_FOLDER, SUBMISSION_FOLDER)
 
-initialize_folder(INPUT_FOLDER)
-
-generate_files_copies(n)
-
-start_time = time.time()
-
-hadoop(INPUT_FOLDER, OUTPUT_FOLDER, mapper, reducer)
-
-end_time = time.time()
-print(f"Tiempo de ejecución: {end_time - start_time:.2f} segundos")
+    end_time = time.time()
+    print(f"Tiempo de ejecución: {end_time - start_time:.2f} segundos")
